@@ -1,0 +1,328 @@
+---
+title: 'ECON 1190 Problem Set 4: Randomized Control Trials'
+author: "Claire Duquennois"
+date: "03/26/2024"
+output:
+ pdf_document:
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Name: Rohan Krishnan**
+
+
+
+
+# Empirical Analysis using Data from Bryan, G., Chowdury, S., Mobarak, A. M. (2014, Econometrica)
+
+
+This exercise uses data from Bryan, Chowdhury, and Mobarak's paper, "Underinvestment in a Profitable Technology: the Case of Seasonal Migration in Bangladesh," published in *Econometrica* in 2014. This paper studies the effects of seasonal migration on household consumption during the lean season in rural Bangladesh by randomly subsidizing the cost of seasonal migration. 
+
+The data can be found by going to Mushfiq Mobarak's Yale faculty page, and then following the link to the data repository page on the Harvard dataverse. 
+
+\pagebreak
+
+# Set Up: 
+
+## Question: Loading the data -  Load any packages you will need and the data contained in the following files `Round1_Controls_Table1.dta` and `Round2.dta`. How many observations are contained in each of these datasets. What is the level of an observation? 
+
+**Code and Answer:**
+```{r}
+#Load necessary libraries
+library(haven)
+library(dplyr)
+library(stargazer)
+library(lfe)
+library(ggplot2)
+
+#Load aej_maindata.dta
+r1 <- read_dta("~/Downloads/Round1_Controls_Table1.dta")
+r2 <- read_dta("~/Downloads/Round2.dta")
+
+#Check number of observations in each data set
+nrow(r1)
+nrow(r2)
+
+#Check if data frames
+is(r1)
+r1 <- data.frame(r1)
+is(r1)
+
+is(r2)
+r2 <- data.frame(r2)
+is(r2)
+```
+There are 1900 observations in the first round data set and 1907 in the second round data set.
+
+
+\pagebreak
+
+## Question: Keep the variables listed below. A description of each variable should appear in the column headers of the loaded data. 
+
+For Round 1 data:
+
+| Name            |Description                                                                                                     |
+|-----------------|----------------------------------------------------------------------------------------------------------------|
+|incentivized     |Is 1 if the household is in either the cash or credit treatment groups, 0 if in the information or control group|
+|q9pdcalq9        |Total calories per person per day                                                                               | 
+|exp_total_pc_r1  |Total monthly household expenditures per capita                                                                 |
+|hhmembers_r1     |Number of household members                                                                                     |
+|tsaving_hh_r1    |Total household savings                                                                                         |
+
+
+For Round 2 data:
+
+| Name            |Description                                                                                                     |
+|-----------------|----------------------------------------------------------------------------------------------------------------|
+|incentivized     |Is 1 if the household is in either the cash or credit treatment groups, 0 if in the information or control group|
+|average_exp2     |Total consumption per person per month in round 2                                                               |
+|upazila          |Sub-district name                                                                                               |
+|village          |Village name                                                                                                    |
+|migrant          |Member of household migrates this season                                                                        |
+|total_fish       |Total monthly household expenditures per capita on fish                                                         |
+
+**Code:**
+```{r}
+#Select variables
+r1.1 <- r1 %>%
+  select(incentivized, q9pdcalq9, exp_total_pc_r1, hhmembers_r1, tsaving_hh_r1)
+
+r2.1 <- r2 %>%
+  select(incentivized, average_exp2, upazila, village, migrant, total_fish)
+```
+
+
+\pagebreak
+
+## **Question: Because the effects of the cash and treatment arms are similar and they find no effect of the information treatment, the authors choose to focus much of their analysis on the contrast between the incentivized group (cash and credit) and the not incentivized group (information and control). We will do the same. Regress all the baseline household characteristics still included in the round 1 data on the incentivized indicator. Present your results in a table. What is the equivalent table in the paper?** 
+
+**Code:**
+```{r, results = 'asis'}
+#Regress incentivized on all other variables in round 1
+reg.1 <- felm(q9pdcalq9~ incentivized, data = r1.1)
+reg.2 <- felm(exp_total_pc_r1~ incentivized, data = r1.1)
+reg.3 <- felm(hhmembers_r1 ~ incentivized, data = r1.1)
+reg.4 <- felm(tsaving_hh_r1 ~ incentivized, data = r1.1)
+
+#Present in table
+stargazer(reg.1, reg.2, reg.3, reg.4, se = list(reg.1$rse, reg.2$rse, reg.3$rse, reg.4$rse), 
+          header = FALSE, no.space = TRUE, type = "latex",
+         title = "Incentivized group vs not incentivized group")
+```
+
+**Answer:** 
+
+The corresponding table is table 1.
+\pagebreak
+
+## **Question: How should the coefficients in the table above be interpreted? What should we look for in this table?**
+
+**Answer:**
+
+This table is conducting a balance test to see if there is a significant difference between treatment and control. Since none of the variables are statistically significant, we can say that there is no significant difference between treatment and control. 
+
+\pagebreak
+
+## **Question: Using the round 2 data, regress migrant on the treatment indicator. What is the equivalent table in the paper?**
+
+**Code:**
+```{r, results = 'asis'}
+#Regress migrant on treatment indicator
+reg.5 <- felm(migrant ~ incentivized, data = r2.1)
+#Present in table
+stargazer(reg.5, se = list(reg.5$rse), 
+          header = FALSE, no.space = TRUE, type = "latex",
+          title = "Migrant regressed on treatment indicator")
+```
+
+
+**Answer:** 
+Table 2 is the equivalent table. 
+
+\pagebreak
+
+## **Question: How should the coefficients in the table above be interpreted? Why is this table important?**
+
+**Answer:**
+The coefficients should be interpreted as being incentivized predicting a statistically significant 22% increase in the probability of an individual migrating.
+
+\pagebreak
+
+## **Question: What is the underlying migration rate in the non-incentivized group and how might this change our interpretation of the results? **
+
+**Answer:**
+The underlying migration rate in the non-incentivized group is 36%. This indicates that there is already some level of migration, indicating that we should more closely examine what types of households are migrating. 
+
+
+\pagebreak
+
+## Question: Replicate the (exact) results presented in the third row of the fourth column of table 3. Present your result in a table and interpret this result.
+
+Hint 1: The authors elect to drop one household observation because the reported value of total fish consumed in the household is very high. 
+
+Hint 2: To replicate the standard errors in the paper make sure to cluster your standard errors as the authors do. 
+
+
+
+**Code:**
+```{r, results = 'asis'}
+#Graph to see outlier
+r2.1 %>%
+  ggplot(aes(x = average_exp2, y = total_fish)) + 
+  geom_point()
+
+#Find max total_fish value and filter it out of data
+max(r2.1$total_fish)
+r2.2 <- r2.1 %>%
+  filter(total_fish < 16000)
+
+#Generate regression
+reg.6 <- felm(average_exp2 ~ incentivized |upazila|0|village, data = r2.2)
+
+#Present in table
+stargazer(reg.6, se = list(reg.6$cse), 
+          header = FALSE, no.space = TRUE, type = "latex",
+          title = "Table 3 Row 3 Column 4 Replication")
+```
+
+
+
+**Answer:**
+Incentivization predicts a statistically significant increase of 68.593 Takas in total consumption per month in round 2 controlling for differences across sub-districts. 
+
+
+
+\pagebreak
+
+## Question: Run the same estimate without fixed effects and present your results in a table. What happens to the coefficient and standard errors? Is this surprising? What does this tell us?
+**Code:**
+```{r, results = 'asis'}
+#Generate regression
+reg.7 <- felm(average_exp2 ~ incentivized |0|0|village, data = r2.2)
+
+#Present in a table
+stargazer(reg.7, se = list(reg.7$rse),
+          type = "latex", header = FALSE, no.space = TRUE,
+          title = "No Fixed Effect Regression")
+```
+
+
+
+**Answer:**
+Both the coefficient and standard error increases. This indicates that some villages may be more inclined to migrate than others (perhaps depending on their relative wealth). This is not surprising as the authors mention this as an issue.
+
+
+\pagebreak
+
+
+## **Question: Why is the header of the first five columns of table 3 "ITT". What is meant by this and what does this tell us about how we should interpret these results?**
+
+**Answer:**
+ITT refers to "intent to treat". The columns examine the relation between being assigned treatment or not (regardless of participation) and each dependent variable. This allows us to compare the average difference between control and treated. 
+
+\pagebreak
+
+## **Question: We are interested in estimating how migration affects total expenditures for the households that were induced to migrate by the cash and credit treatments as follows,**
+
+$$
+TotExp_{ivj}=\alpha+\beta_1Migrate_{ivj}+\varphi_j+\nu_{ivj}
+$$
+**where $Migrate_{ivj}$ is dummy indicator for if a member of household i in village v in subdistrict j migrated, and $\varphi_j$ are the sub district fixed effects. However it is not possible to identify in the data which households were induced by the treatment vs those who would have migrated  either way. Furthermore, there is likely substantial selection between the households that select into migration versus those that do not. Propose a source of exogenous variation that can be used as an instrument to isolate "good" exogenous variation in migration. **
+
+**Answer:**
+A good instrument could be the random assignment of being placed into the incentivized group. As this is a random allocation, there is no selection. 
+
+\pagebreak
+
+## **Question: What is the first stage specification?**
+
+**Answer:**
+$Migration = \beta_0 + \beta_1 Incentivized + \epsilon$
+
+\pagebreak
+
+## **Question: Estimate the first stage and check that you have a strong instrument for migration.**
+
+ Note: The first stage results reported in the paper appendix may differ slightly as explained in the table footnote.  
+
+**Code:**
+```{r, results = 'asis'}
+#Generate first stage regression
+reg.fs <- felm(migrant ~ incentivized, data = r2.2)
+
+#Present in table
+stargazer(reg.fs, se = list(reg.fs$rse),
+          type = "latex", header = FALSE, no.space = TRUE,
+          title = "First Stage Regression")
+```
+
+
+
+**Answer:**
+The p-value is highly significant at the 99%, meaning we can reject the null that there is no relationship. 
+
+\pagebreak
+
+## **Question: Use your instrument to estimate the LATE (Local Average Treatment Effect), the impact of migration on total consumption for those induced to migrate by the treatment, as in columns 6 of table 3 in the paper. Interpret your results. **
+
+Note: If you just use Incentivized as your instrument, your estimates will not be exactly the same. If you wish to replicate the paper's coefficients exactly, you will need to use multiple instruments, one for each treatment arm. 
+
+**Code:**
+```{r, results = 'asis'}
+#Generate regression
+reg.iv <- felm(average_exp2 ~ 1|upazila|(migrant ~ incentivized)|village, data = r2.2)
+
+#Present in table
+stargazer(reg.iv, se = list(reg.iv$cse),
+          type = "latex", header = FALSE, no.space = FALSE,
+          title = "LATE Using Instrumental Variable")
+```
+
+
+**Answer:**
+Using incentivized as an instrument for migration and including fixed effects for sub-district and standard error clustering by village, the coefficient of migration is 374.9. This indicates that a household migrant statistically significantly predicts a 374.9 increase in total consumption. 
+
+
+\pagebreak
+
+
+## **Question: Why is this result different from the result in columns 4?  **
+
+**Answer:** 
+Our results looks at those who actually migrated (meaning we scale our IV to adjust for non-compliance) whereas column 4 only looks at those who were incentivized. 
+
+\pagebreak
+
+
+## **Question: Why is this value particularly relevant for policy decisions in the context of this experiment.**
+
+**Answer:**
+It appears that migration has a significant predictive increase in a households consumption, which opens avenues for policy decisions encouraging migration to boost local economies. 
+\pagebreak
+
+## **Question: Suppose a policy maker found these results so compelling that they decided to make this a national policy. How would general equilibrium effects potentially change the impacts of this policy if it was implemented in a very large scale way?**
+
+**Answer:**
+This experiment only has 1900 observations, of which only a fraction migrated. If there was large scale migration, there would likely be larger equilibrium shifts in the local economy including lower wages because of increased competition. 
+
+\pagebreak
+
+## **Question: One major concern that is often brought up in discussions about RCT's is the problem of external validity. It is not always clear how informative the findings from a small scale research project in one context are for policy makers working on a different scale and in different contexts. What are your thoughts on the external validity of this particular project and RCT's in general? **
+
+**Answer:**
+I think RCTs in isolation provide little benefit for policymakers. However, as a large amount of studies are done on a topic, their collective results could be useful for policy decisions. 
+
+\pagebreak
+
+
+# Submission instructions:
+
+1) Knit your assignment in PDF (It should be 20 pages long).
+2) Make sure you have ONE question and answer per page (this allows gradescope to easily find your answers).
+3) Upload your assignment PDF to gradescope.
+
+ 
+

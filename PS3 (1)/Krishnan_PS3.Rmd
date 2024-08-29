@@ -1,0 +1,435 @@
+---
+title: 'Problem Set 3: Instrumental Variables'
+author: "Claire Duquennois"
+date: ""
+output:
+  pdf_document:
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+***NAME: ROHAN KRISHNAN***
+
+**Empirical Analysis using Data from Ananat (2011, AEJ:AE)**
+
+
+This exercise uses data from Elizabeth Ananat's paper, "The Wrong Side(s) of the Tracks: The Causal Effects of Racial Segregation on Urban Poverty and Inequality," published in the *American Economic Journal: Applied Economics* in 2011. This paper studies how segregation has affected population characteristics and income disparity in US cities using the layout of railroad tracks as an instrumental variable. 
+
+
+**Finding the data**
+
+I have downloaded Ananat's `aej_maindata.dta` file and made it available in the RCloud assignment workspace. I downloaded this data from the AER's website which links you to the ICPSR's data repository. Anyone can sign in to get access to the replication data files. These include the typical files in a replication folder: several datasets, several .do files (which is a STATA command file), and text files with the data descriptions which tell you about the different variables included in the dataset. 
+
+
+\pagebreak
+
+# Set up and opening the data
+
+## Question: Load the have, dplyr, stargazer, lfe and ggplot2 packages and the data contained in the `aej_maindata.dta` file. Make sure it is stored as a data frame.  
+
+**Code:**
+```{r, message = FALSE}
+#Load necessary libraries
+library(haven)
+library(dplyr)
+library(stargazer)
+library(lfe)
+library(ggplot2)
+
+#Load aej_maindata.dta
+maindata <- read_dta("~/Downloads/aej_maindata.dta")
+
+#Check if maindata is a data frame
+is(maindata)
+
+#Convert maindata to data frame
+maindata <- as.data.frame(maindata)
+
+#Check if maindata is a data frame
+is(maindata)
+```
+
+
+ \pagebreak
+
+
+## Question: The dataset contains many variables, some of which are not used in this exercise. Keep the following variables in the final dataset (Hint: use the `select` function in `dplyr`). 
+
+| Name     |Description                                                             |
+|----------|------------------------------------------------------------------------|
+|dism1990	 |1990 dissimilarity index                                                | 
+|herf      |RDI (Railroad division index)                                           |
+|lenper    |Track length per square km                                              |
+|povrate_w |White poverty rate 1990                                                 |
+|povrate_b |Black poverty rate 1990                                                 |
+|area1910  |Physical area in 1910 (1000 sq. miles)                                  |
+|count1910 |Population in 1910 (1000s)                                              | 
+|ethseg10  |Ethnic Dissimilariy index in 1910                                       |
+|ethiso10  |Ethnic isolation index in 1910                                          |
+|black1910 |Percent Black in 1910                                                   |
+|passpc    |Street cars per capita 1915                                             |
+|black1920 |Percent Black 1920                                                      |
+|lfp1920   |Labor Force Participation 1920                                          |
+|incseg    |Income segregation 1990                                                 |
+|pctbk1990 |Percent Black 1990                                                      |
+|manshr    |Share employed in manufacturing 1990                                    |
+|pop1990   |Population in 1990                                                      |
+
+**You can find the detailed description of each variable in the original paper. **
+
+**Code:**
+
+```{r}
+#Filter data
+md2 <- maindata %>%
+  select(dism1990, herf, lenper, povrate_w, povrate_b, area1910, 
+         count1910, ethseg10, ethiso10, black1910, passpc, black1920, 
+         lfp1920, incseg, pctbk1990, manshr, pop1990)
+```
+
+
+\pagebreak
+
+
+# Data description: 
+
+## Question: How many observations are contained in the data. What is the level of an observation?
+
+**Answer:** 
+
+There are 121 observations in the data. Each observation is on the city level. 
+
+\pagebreak
+
+## Question: Report summary statistics of the following variables in the dataset:"dism1990", "herf", "lenper", "povrate_w", "povrate_b". Present these summary statistics in a formatted table, you can use `stargazer` or other packages.
+
+**Code:**
+
+```{r, results = 'asis'}
+#Display summary statistics
+stargazer(md2[,c("dism1990", "herf", "lenper", "povrate_w", "povrate_b")], 
+          type = "latex", header = FALSE, no.space = TRUE,
+          title = "Summary Statistics of Relevant Variables")
+```
+
+\pagebreak
+
+# Reduced Form:
+
+## Question: We are interested in understanding how segregation affects population characteristics and income disparity in US cities. We will focus on two outcome variables: the poverty rate for blacks and whites. Regress these two outcome variables on segregation in 1990, our explanatory variable, and interpret your results. Report robust standard errors. 
+
+Hint 1: These exact results are reported in the second row of columns 1 and 2 of table 2. 
+
+Hint 2: Since the units of the explanatory variable are strange, it is helpful to interpret the effect in terms of standard deviations. So instead of interpreting a one unit change in `dism1990`, interpret a  one standard deviation (0.14) change in `dism1990`. 
+
+
+**Code:**
+
+```{r, results = 'asis'}
+#Generate regressions
+reg_b <- felm(povrate_b ~ dism1990, data = md2)
+reg_w <- felm(povrate_w ~ dism1990, data = md2)
+
+#Display regression summaries
+stargazer(reg_b, reg_w, type = "latex", se = list(reg_b$rse, reg_w$rse),
+          header = FALSE, no.space = TRUE, 
+          title = "Naive Regression of Segregation on Poverty Rate")
+```
+
+**Answer:**
+
+A one standard deviation (0.14) increase in a city's dissimilarity index is statistically significantly correlated with a 0.025 (2.5%) *increase* in the poverty rate among black residents in 1990. Meanwhile, a one standard deviation (0.14) increase in a city's dissimilarity's index is statistically significantly correlated with a 0.010 (1%) *decrease* in the poverty rate among white residents in 1990.
+
+\pagebreak
+
+## Question: Explain the problem with giving a causal interpretation to the estimates you just produced. Give examples of specific factors that might make a causal interpretation of your result problematic.
+
+**Answer:**
+
+The naive regression above has serious issues with the conditional independence assumption. In order to give a causal interpretation to a regression, the treatment (in this case segregation) must be plausibly random given the controlling variables in the regression. The regression above has no control variables and it is impossible to say that segregation was randomly assigned across cities without any controls. For example, the level or corruption, ratio of black to white residents, location of the city, population and many other factors are important ommitted variables that would have definitely affected the level of segregation of a city. 
+
+\pagebreak
+
+# Validity of the instrument:
+
+## Question: Estimate the following regression and interpret it's coefficients, 
+$$
+ dism1990_i=\beta_0+\beta_1RDI_i+\beta_2 tracklength_i+\epsilon.
+$$
+
+Hint 1: These exact results are reported in the first column of the top panel of table 1.
+
+
+Hint 2: Since the units of the explanatory variable are strange, it is helpful to interpret the effect in terms of standard deviations. So instead of interpreting a one unit change in `herf`, interpret a one standard deviation (0.14) change in `herf`. 
+
+
+**Code:**
+
+```{r, results='asis'}
+#Generate regression
+reg_dism <- felm(dism1990 ~ herf + lenper, data = md2)
+
+#Display regression summary table
+stargazer(reg_dism, type = "latex", header = FALSE,
+          no.space = TRUE, se = list(reg_dism$rse),
+          title = "RDI and Track Length's Effect on Dissimilarity Index"
+          )
+```
+
+**Answer:**
+
+A one standard deviation (0.14) increase in a city's railroad division index is statistically significantly correlated with a 0.050 *increase* in the city's dissimilarity index score in 1990. Meanwhile, a one square kilometer increase in a city's railroad track's length is statistically significantly (at the 0.01 level) correlated with a 18 point *decrease* in the city's dissimilarity index score in 1990. 
+
+\pagebreak
+
+## Question: In the context of instrumental variables, what is this regression referred to as and why is it important? 
+
+**Answer:**
+
+This regression is referred to as the *first stage*. It is important in the context of instrumental variables because it establishes that there is a relationship between our endogenous variable of interest (segregation) and our chosen instrument(s) (RDI and track length). 
+
+\pagebreak
+
+## Question: Illustrate the relationship between the RDI and segregation graphically. 
+
+Hint: See figure 3.
+
+**Code:**
+
+```{r}
+#Create graph comparing RDI and segregation
+md2 %>%
+  ggplot(aes(x = herf, y = dism1990)) + 
+  geom_point(color = "blue") + 
+  geom_smooth(method = "lm", se = FALSE, color = "dark red") + 
+  labs(x = "RDI", y = "Segregation", title = "Relationship between RDI and Segregation", subtitle = "Question 4.3") + 
+  theme_linedraw()
+```
+
+\pagebreak
+
+
+## Question: Is there a concern that this might be a weak instrument? Why would this be a problem? Hint: check the fstat.
+
+**Answer:**
+```{r}
+#Recover f-statistic from regression
+summary(reg_dism)$F.fstat[c(1,4)]
+```
+
+From the output above, the f-statistic is 14.98 with a p-value much less than 0.001. The typical threshold for a strong instrument is an f-statistic of 10, so we can safely say that RDI and track length are strong instruments for segregation. A weak instrument would be a problem because the estimate for our instrument variable is as follows: $\hat{\beta_{iv}} = \beta + \frac{cov(z,v)}{cov(z,x_1)}$. If we have a weak instrument, then $cov(z,x_1)$ is very small. Thus, the 
+
+\pagebreak
+
+## Question:  Regress the following cith characteristics  on the RDI and track length: `area1910` `count1910`, `black1910`, `incseg`, `lfp1920`. Present your results and interpret your findings. Why do these results matter for answering our question of interest? 
+
+Hint: In stargazer, add the option `omit.stat=c( "ser")` to remove the residual standard errors from the table footer so that the table fits the width of a page. 
+
+**Code and Answer:**
+
+```{r, results='asis'}
+#Generate exclusion restriction regressions
+reg1 <- felm(area1910 ~ herf + lenper, data = md2)
+reg2 <- felm(count1910 ~ herf + lenper, data = md2)
+reg3 <- felm(black1910 ~ herf + lenper, data = md2)
+reg4 <- felm(incseg ~ herf + lenper, data = md2)
+reg5 <- felm(lfp1920 ~ herf + lenper, data = md2)
+
+#Display regression summaries in stargazer
+stargazer(reg1, reg2, reg3, reg4, reg5, se = list(reg1$rse, reg2$rse, reg3$rse, reg4$rse, reg5$rse),
+          header = FALSE, type = "latex", no.space = TRUE,
+          omit.stat = c("ser"), title = "Exclusion Restriction")
+```
+
+\pagebreak
+
+## Question: What are the two conditions necessary for a valid instrument? What evidence do you have that the RDI meet these conditions? Be specific in supporting this claim. 
+
+**Answer:**
+
+The two conditions necessary for a valid instrument are a (preferably) strong first stage (proved above) and the satisfaction of the exclusion restriction. To satisfy the exclusion restriction, we must be able to argue that our instrument is not correlated at all with any of the omitted variables that are confounding our original endogenous variable. We have shown that we have a strong first stage by analyzing the first stage f-statistics in the question above. For the exclusion restriction, the above regressions show the relationship between our two instruments (*herf* and *lenper*) with several of the included control variables that are suspected to have a selection effect on the level of segregation across cities. As shown in the tables, none of the variables have a statistically significant relationship with either instrument except for *black1910* (percent black in 1910) with track length and *lfp1920* and track length, though the effect is quite small. Since we have a strong first stage, a minor violation of the exclusion restriction should not blow up our model's error. In her paper, Ananat also provides extensive historical and contextual evidence and reasoning as to why a city's RDI and track length were not correlated with any of the omitted variables.
+
+\pagebreak
+
+## Question: Do you believe the instrument is valid? Why/why not?
+
+**Answer:**
+
+I believe the instrument is valid because it clearly has a strong first stage and is almost entirely consistent in adhering to the exclusion restriction. Outside of the calculations within this assignment, I also believe that Ananat provides extensive and convincing evidence that none of her omitted variables had a relationship with her instruments (a.k.a railroad construction was purely dependent on economic considerations).
+
+\pagebreak
+
+## Question: Generate a table that estimates the effect of segregation on the poverty rate for blacks and whites by OLS and then using the RDI instrument. Make sure you report robust standard errors. How does the use of the RDI instrument change the estimated coefficients? 
+
+Hint: these will be the exact results reported in row 2 of columns 1-4 in table 2.
+
+**Code and Answer:**
+
+```{r, results='asis'}
+#Generate regressions
+reg_olsb <- felm(povrate_b ~ dism1990, data = md2)
+reg_olsw <- felm(povrate_w ~ dism1990, data = md2)
+reg_insb <- felm(povrate_b ~ lenper|0|
+                   (dism1990 ~ herf), data = md2)
+reg_insw <- felm(povrate_w ~ lenper |0|
+                   (dism1990 ~ herf), data = md2)
+
+#Display regression summaries in table
+stargazer(reg_olsb, reg_olsw, reg_insb, reg_insw, 
+          se = list(reg_olsb$rse, reg_olsw$rse, reg_insb$rse, reg_insw$rse),
+          header = FALSE, type = "latex", no.space = TRUE,
+          omit.stat = c("ser"), title = "OLS vs IV Regressions")
+```
+
+\pagebreak
+
+## Question: What is the reduced form equation?
+
+**Answer:**
+
+The reduced form equation is $poverty rate = RDI + track length$. The track length variable is an important control to allow us to control for the length of tracks by city. In practice, we would make a regression for the white and black poverty rate variables separately. 
+
+
+
+\pagebreak
+
+## Question: For the two poverty rates, estimate the reduced form on all the cities and illustrate the reduced form relationships graphically. (2 pages)
+
+**Code:**
+
+```{r, results = 'asis'}
+#Generate reduced form regressions
+reg_reduced1 <- felm(povrate_b ~ herf + lenper, data = md2)
+reg_reduced2 <- felm(povrate_w ~ herf + lenper, data = md2)
+
+#Display results in stargazer
+stargazer(reg_reduced1, reg_reduced2, se = list(reg_reduced1$rse, reg_reduced2$rse),
+         header = FALSE, no.space = TRUE, type = "latex", 
+         omit.stat = c("ser"),
+         title = "Reduced Form")
+```
+
+```{r}
+#Load patchwork library
+library(patchwork)
+
+#Create graphs
+g1 <- md2 %>%
+  ggplot(aes(x = herf,
+             y = povrate_b)) + 
+  geom_point() + 
+  geom_smooth() + 
+  labs(x = "RDI", 
+       y = "Poverty Rate (Black)")
+g2 <- md2 %>%
+  ggplot(aes(x = herf,
+             y = povrate_w)) + 
+  geom_point() +
+  geom_smooth() +
+  labs(x = "RDI",
+       y = "Poverty Rate (White)")
+
+#Display graphs side by side
+g1 + g2
+```
+
+
+\pagebreak
+
+## Question: Generate a table with six columns that check whether the main results are robust to adding additional controls for city characteristics. What do you conclude? (2 pages)
+
+Hint: In stargazer, add the option `omit.stat=c( "ser")` to remove the residual standard errors from the table footer so that the table fits in a page. 
+
+**Code:**
+```{r, results='asis'}
+#Generate regressions
+reg_1 <- felm(povrate_b ~ lenper |0|
+                (dism1990 ~ herf), data = md2)
+reg_2 <- felm(povrate_w ~ lenper |0|
+                (dism1990 ~ herf), data = md2)
+reg_3 <- felm(povrate_b ~ lenper + area1910 |0|
+                (dism1990 ~ herf), data = md2)
+reg_4 <- felm(povrate_w ~ lenper + area1910 |0|
+                (dism1990 ~ herf), data = md2)
+reg_5 <- felm(povrate_b ~ lenper + area1910 + black1910 
+              |0|(dism1990 ~ herf), data = md2)
+reg_6 <- felm(povrate_w ~ lenper + area1910 + black1910 
+              |0|(dism1990 ~ herf), data = md2)
+
+#Display regressions
+stargazer(reg_1, reg_2, reg_3, reg_4, reg_5, reg_6,
+          se = list(reg_1$rse, reg_2$rse, reg3$rse, reg_4$rse, reg_5$rse, reg_6$rse),
+          type = "latex", header = FALSE, no.space = TRUE, omit.stat = c("ser"), 
+          title = "Testing Robustness to Controls for IV Regressions")
+```
+
+**Answer:**
+
+The instruments magnitude appears to slightly change as you add control variables to the regression. Its significance also decreases.  The models for *povrate_w* had a smaller change in the magnitude of their coefficients, indicating they may be slightly more robust to the addition of controls. However, in general, it appears that both models *are* robust to the addition of controls as the coefficients remain within 2 standard errors of the main estimation.  
+
+\pagebreak
+
+# Why **Two Stage** least squares? 
+
+Because the estimates in this paper only feature one endogenous regressor and one instrument, it is an excellent example with which to illustrate build intuition and see what the instrumental variables regressor is actually doing because in this scenario the IV estimator is exactly equal to the two stage least squares estimator ($\hat{\beta}_{IV}=\hat{\beta}_{2SLS}$).
+
+
+
+## Question: Estimate the first stage regression and use your estimates to generate the predicted values for the explanatory variable for all the observations.
+
+**Code:**
+```{r}
+#Estimate first stage regression
+reg_fs <- lm(dism1990 ~ herf + lenper, data = md2)
+
+#Generate predicted poverty rates
+clean_dism1990 <- predict(reg_fs, md2)
+```
+
+
+\pagebreak
+
+
+## Question: If our instrument is valid, the step above "removed" the "bad" endogenous variation from the predicted explanatory variable, keeping only the exogenous variation that is generated by the instrument. Now run the second stage by regressing our outcome variable on the predicted values generated above and the relevant controls. Compare your estimates from this regression to those generated earlier. How do they compare?
+
+**Code:**
+```{r, results = 'asis'}
+#Add cleaned variable to data
+md2$clean_dism1990 <- clean_dism1990
+
+#Run second stage regression
+reg_ss <- lm(povrate_b ~ clean_dism1990 + lenper, data = md2)
+reg_ss2 <- lm(povrate_w ~ clean_dism1990 + lenper, data = md2)
+
+stargazer(reg_insb, reg_insw, reg_ss, reg_ss2,
+          se = list(reg_insb$rse, reg_insw$rse, reg_ss$rse, reg_ss2$rse),
+          header = FALSE, no.space = TRUE, omit.stat = c("ser"),
+          title = "2SLS vs IV")
+```
+
+
+**Answer:**
+
+The coefficients are exactly the same. This indicates that our 2SLS regression is equivalent to our IV regression. There is a slight difference in the standard errors due to the different procedures used to calculate each regression. 
+
+\pagebreak
+
+# Yet another IV trick: Taking the "Good" variation and scaling it
+
+## Question: Take the coefficient from you reduced form estimate and divide it by your first stage estimate. How does this value compare your earlier estimate for the main result? 
+
+**Answer:**
+
+For *povrate_w* we get $\frac{0.092}{0.357} = 0.258$ and for *povrate_b* we get $\frac{-0.070}{0.357} = -0.196$ which exactly matches the estimates form our main result. 
+ 
+\pagebreak
+
+# Submission instructions:
+
+1) Knit your assignment in PDF.
+2) Make sure you have ONE question and answer per page unless a question spans two pages where noted (this allows gradescope to easily find your answers). It should be 24 pages.
+3) Upload your assignment PDF to gradescope.
+
